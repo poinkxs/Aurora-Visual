@@ -388,6 +388,413 @@ jobs:
                       String name = eff.getEffect().value().getDisplayName().getString();
                       int amp = eff.getAmplifier() + 1;
                       int sec = Math.max(0, eff.getDuration() / 20);
+name: Build Aurora Visuals 26.1
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.4.0'
+
+      - name: Generate Mod Source & Build
+        run: |
+          mkdir -p aurora-visuals/src/main/resources
+          mkdir -p aurora-visuals/src/main/java/dev/aurora/mixin
+          cd aurora-visuals
+
+          cat << 'EOF' > gradle.properties
+          org.gradle.jvmargs=-Xmx3G
+          minecraft_version=26.1
+          loader_version=0.18.4
+          loom_version=1.15-SNAPSHOT
+           mod_version=2.0.0
+          maven_group=dev.aurora
+          archives_base_name=aurora-visuals-mc26.1
+          EOF
+
+          cat << 'EOF' > settings.gradle
+          pluginManagement {
+            repositories {
+              maven {
+                name = 'Fabric'
+                url = 'https://maven.fabricmc.net/'
+              }
+              mavenCentral()
+              gradlePluginPortal()
+            }
+          }
+          EOF
+
+          cat << 'EOF' > build.gradle
+          plugins {
+            id 'net.fabricmc.fabric-loom' version "${loom_version}"
+          }
+          version = project.mod_version
+          group = project.maven_group
+          base {
+            archivesName = project.archives_base_name
+          }
+          dependencies {
+            minecraft "com.mojang:minecraft:${project.minecraft_version}"
+            implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+          }
+          processResources {
+            inputs.property "version", project.version
+            filesMatching("fabric.mod.json") {
+              expand "version": inputs.properties.version
+            }
+          }
+          tasks.withType(JavaCompile).configureEach {
+            it.options.release = 25
+            it.options.encoding = "UTF-8"
+          }
+          EOF
+
+          cat << 'EOF' > src/main/resources/fabric.mod.json
+          {
+            "schemaVersion": 1,
+            "id": "auroravisuals",
+            "version": "${version}",
+            "name": "Aurora Visuals 26.1 Ultimate",
+            "description": "Neon visuals for Minecraft 26.1 Pojav Edition (Zero-Dependency)",
+            "authors": ["AuroraDev"],
+            "environment": "client",
+            "entrypoints": {
+              "client": ["dev.aurora.AuroraVisualsClient"]
+            },
+            "mixins": [
+              "auroravisuals.mixins.json"
+            ],
+            "depends": {
+              "fabricloader": ">=0.18.4",
+              "minecraft": "~26.1",
+              "java": ">=25"
+            }
+          }
+          EOF
+
+          cat << 'EOF' > src/main/resources/auroravisuals.mixins.json
+          {
+            "required": true,
+            "minVersion": "0.8",
+            "package": "dev.aurora.mixin",
+            "compatibilityLevel": "JAVA_25",
+            "client": [
+              "GuiMixin"
+            ],
+            "injectors": {
+              "defaultRequire": 1
+            }
+          }
+          EOF
+
+          cat << 'EOF' > src/main/java/dev/aurora/mixin/GuiMixin.java
+          package dev.aurora.mixin;
+          import dev.aurora.AuroraHudRenderer;
+          import net.minecraft.client.DeltaTracker;
+          import net.minecraft.client.gui.Gui;
+          import net.minecraft.client.gui.GuiGraphicsExtractor;
+          import org.spongepowered.asm.mixin.Mixin;
+          import org.spongepowered.asm.mixin.injection.At;
+          import org.spongepowered.asm.mixin.injection.Inject;
+          import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+          @Mixin(Gui.class)
+          public class GuiMixin {
+              @Inject(method = "extractRenderState", at = @At("TAIL"))
+              private void onExtractRenderState(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker, CallbackInfo ci) {
+                  AuroraHudRenderer.renderHud(graphics, deltaTracker);
+              }
+          }
+          EOF
+
+          cat << 'EOF' > src/main/java/dev/aurora/AuroraVisualsClient.java
+          package dev.aurora;
+          import net.fabricmc.api.ClientModInitializer;
+          public class AuroraVisualsClient implements ClientModInitializer {
+              public static final String MOD_ID = "auroravisuals";
+              @Override
+              public void onInitializeClient() {
+                  // Инициализация проходит напрямую через нативный GuiMixin без внешних библиотек!
+              }
+          }
+          EOF
+
+          cat << 'EOF' > src/main/java/dev/aurora/AuroraConfig.java
+          package dev.aurora;
+          import java.awt.Color;
+          public class AuroraConfig {
+              public static boolean watermark = true;
+              public static boolean statsPills = true;
+              public static boolean targetHud = true;
+              public static boolean customCrosshair = true;
+              public static boolean hitParticles = true;
+              public static boolean keystrokes = true;
+              public static boolean ambientFireflies = true;
+              public static boolean shockwaveAndCombo = true;
+              public static boolean potionHud = true;
+              public static boolean screenVignette = true;
+              public static int themeIndex = 0;
+              public static final String[] THEME_NAMES = {
+                  "Cyberpunk (Бирюза + Пурпур)",
+                  "Chroma RGB (Радужная волна)",
+                  "Sakura (Розовый + Голубой)",
+                  "Ocean (Синий + Аква)",
+                  "Blood Moon (Алый + Оранжевый)",
+                  "Sunset Gold (Золото + Фиолет)"
+              };
+              private static final int[][] THEME_COLORS = {
+                  {0xFF00F5D4, 0xFFB5179E},
+                  {0xFFFF0055, 0xFF00FFAA},
+                  {0xFFFF758F, 0xFF72EFDD},
+                  {0xFF00BBF9, 0xFF00F5D4},
+                  {0xFFFF0A54, 0xFFFF9E00},
+                  {0xFFFFBE0B, 0xFF8338EC}
+              };
+              public static int getPrimaryColor() {
+                  if (themeIndex == 1) return getAnimatedColor(0);
+                  return THEME_COLORS[themeIndex][0];
+              }
+              public static int getSecondaryColor() {
+                  if (themeIndex == 1) return getAnimatedColor(800);
+                  return THEME_COLORS[themeIndex][1];
+              }
+              public static void nextTheme() {
+                  themeIndex = (themeIndex + 1) % THEME_NAMES.length;
+              }
+              public static int getAnimatedColor(int offsetMs) {
+                  if (themeIndex == 1) {
+                      float hue = ((System.currentTimeMillis() + offsetMs) % 3600L) / 3600.0f;
+                      return Color.HSBtoRGB(hue, 0.85f, 1.0f) | 0xFF000000;
+                  }
+                  double wave = (Math.sin((System.currentTimeMillis() + offsetMs) * 0.0035) + 1.0) * 0.5;
+                  return lerpColor(THEME_COLORS[themeIndex][0], THEME_COLORS[themeIndex][1], (float) wave);
+              }
+              public static int lerpColor(int c1, int c2, float t) {
+                  t = Math.max(0f, Math.min(1f, t));
+                  int a1 = (c1 >> 24) & 0xFF, r1 = (c1 >> 16) & 0xFF, g1 = (c1 >> 8) & 0xFF, b1 = c1 & 0xFF;
+                  int a2 = (c2 >> 24) & 0xFF, r2 = (c2 >> 16) & 0xFF, g2 = (c2 >> 8) & 0xFF, b2 = c2 & 0xFF;
+                  int a = (int) (a1 + (a2 - a1) * t);
+                  int r = (int) (r1 + (r2 - r1) * t);
+                  int g = (int) (g1 + (g2 - g1) * t);
+                  int b = (int) (b1 + (b2 - b1) * t);
+                  return (a << 24) | (r << 16) | (g << 8) | b;
+              }
+              public static int withAlpha(int color, int alpha) {
+                  return (color & 0x00FFFFFF) | ((Math.max(0, Math.min(255, alpha)) & 0xFF) << 24);
+              }
+          }
+          EOF
+
+          cat << 'EOF' > src/main/java/dev/aurora/AuroraHudRenderer.java
+          package dev.aurora;
+          import net.minecraft.client.DeltaTracker;
+          import net.minecraft.client.Minecraft;
+          import net.minecraft.client.gui.Font;
+          import net.minecraft.client.gui.GuiGraphicsExtractor;
+          import net.minecraft.world.effect.MobEffectInstance;
+          import net.minecraft.world.entity.LivingEntity;
+          import net.minecraft.world.item.ItemStack;
+          import net.minecraft.world.item.Items;
+          import net.minecraft.world.phys.EntityHitResult;
+          import org.lwjgl.glfw.GLFW;
+          import java.util.*;
+          public class AuroraHudRenderer {
+              private static LivingEntity currentTarget = null;
+              private static long lastTargetTime = 0L;
+              private static float animatedHealth = 20f;
+              private static float lastKnownTargetHp = -1f;
+              private static int comboCount = 0;
+              private static long lastHitTimestamp = 0L;
+              private static float shockwaveProgress = 1.0f;
+              private static float hitFlashAlpha = 0.0f;
+              private static boolean wasZeroPressed = false;
+              private static final List<Spark> SPARKS = new ArrayList<>(64);
+              private static final List<Firefly> FIREFLIES = new ArrayList<>(24);
+              private static final List<FloatingText> FLOATING_TEXTS = new ArrayList<>(16);
+              private static final Random RANDOM = new Random();
+              private static class Spark {
+                  float x, y, vx, vy, alpha; int color;
+                  Spark(float x, float y, float vx, float vy, int color) {
+                      this.x = x; this.y = y; this.vx = vx; this.vy = vy; this.alpha = 1.0f; this.color = color;
+                  }
+              }
+              private static class Firefly {
+                  float x, y, vx, vy, phase; int colorOffset;
+                  Firefly(int sw, int sh) {
+                      this.x = RANDOM.nextInt(Math.max(100, sw)); this.y = RANDOM.nextInt(Math.max(100, sh));
+                      this.vx = (RANDOM.nextFloat() - 0.5f) * 0.45f; this.vy = (RANDOM.nextFloat() - 0.5f) * 0.35f;
+                      this.phase = RANDOM.nextFloat() * 6.28f; this.colorOffset = RANDOM.nextInt(1500);
+                  }
+              }
+              private static class FloatingText {
+                  String text; float x, y, alpha; int color;
+                  FloatingText(String text, float x, float y, int color) {
+                      this.text = text; this.x = x; this.y = y; this.alpha = 1.0f; this.color = color;
+                  }
+              }
+              private static void triggerHitEffects(Minecraft mc, LivingEntity target, float dmg) {
+                  long now = System.currentTimeMillis();
+                  comboCount = (now - lastHitTimestamp < 2500L) ? comboCount + 1 : 1;
+                  lastHitTimestamp = now;
+                  shockwaveProgress = 0.0f;
+                  hitFlashAlpha = 0.35f;
+                  int cx = mc.getWindow().getGuiScaledWidth() / 2;
+                  int cy = mc.getWindow().getGuiScaledHeight() / 2;
+                  if (AuroraConfig.shockwaveAndCombo && FLOATING_TEXTS.size() < 12) {
+                      FLOATING_TEXTS.add(new FloatingText("COMBO x" + comboCount + "!", cx - 28, cy - 18, AuroraConfig.getPrimaryColor()));
+                      FLOATING_TEXTS.add(new FloatingText(String.format(Locale.ROOT, "-%.1f HP", dmg), cx + 18, cy - 8, 0xFFFF0A54));
+                  }
+                  if (AuroraConfig.hitParticles && SPARKS.size() < 60) {
+                      for (int i = 0; i < 14; i++) {
+                          double angle = RANDOM.nextDouble() * Math.PI * 2.0;
+                          float speed = 1.3f + RANDOM.nextFloat() * 3.4f;
+                          int c = (i % 2 == 0) ? AuroraConfig.getPrimaryColor() : AuroraConfig.getSecondaryColor();
+                          SPARKS.add(new Spark(cx, cy, (float) Math.cos(angle) * speed, (float) Math.sin(angle) * speed, c));
+                      }
+                  }
+              }
+              private static void checkInputAndTargets(Minecraft client) {
+                  long windowHandle = GLFW.glfwGetCurrentContext();
+                  if (windowHandle != 0L) {
+                      boolean zeroDown = GLFW.glfwGetKey(windowHandle, GLFW.GLFW_KEY_0) == GLFW.GLFW_PRESS
+                          || GLFW.glfwGetKey(windowHandle, GLFW.GLFW_KEY_KP_0) == GLFW.GLFW_PRESS;
+                      if (zeroDown && !wasZeroPressed) {
+                          if (client.screen instanceof AuroraMenuScreen) {
+                              client.setScreen(null);
+                          } else if (client.screen == null) {
+                              client.setScreen(new AuroraMenuScreen());
+                          }
+                      }
+                      wasZeroPressed = zeroDown;
+                  }
+                  if (client.hitResult instanceof EntityHitResult ehr && ehr.getEntity() instanceof LivingEntity living) {
+                      if (currentTarget != living) {
+                          currentTarget = living;
+                          lastKnownTargetHp = living.getHealth();
+                      }
+                      lastTargetTime = System.currentTimeMillis();
+                  }
+                  if (currentTarget != null) {
+                      float hp = currentTarget.getHealth();
+                      if (lastKnownTargetHp > hp && lastKnownTargetHp - hp >= 0.1f) {
+                          triggerHitEffects(client, currentTarget, lastKnownTargetHp - hp);
+                      }
+                      lastKnownTargetHp = hp;
+                      if (!currentTarget.isAlive() || System.currentTimeMillis() - lastTargetTime > 3000L) {
+                          currentTarget = null;
+                          lastKnownTargetHp = -1f;
+                      }
+                  }
+              }
+              public static void renderHud(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
+                  Minecraft mc = Minecraft.getInstance();
+                  if (mc.player == null) return;
+                  checkInputAndTargets(mc);
+                  if (mc.options.hideGui) return;
+                  Font font = mc.font;
+                  int sw = mc.getWindow().getGuiScaledWidth();
+                  int sh = mc.getWindow().getGuiScaledHeight();
+                  if (AuroraConfig.ambientFireflies) renderFireflies(graphics, sw, sh);
+                  if (AuroraConfig.screenVignette) renderNeoVignette(graphics, mc, sw, sh);
+                  if (AuroraConfig.watermark) renderWatermark(graphics, font);
+                  if (AuroraConfig.statsPills) renderStatsPills(graphics, font, mc, sh);
+                  if (AuroraConfig.keystrokes) renderKeystrokes(graphics, font, mc);
+                  if (AuroraConfig.potionHud) renderPotionHud(graphics, font, mc, sw);
+                  if (AuroraConfig.targetHud) renderTargetHud(graphics, font, sw, sh);
+                  if (AuroraConfig.shockwaveAndCombo) renderShockwaveAndFloatingText(graphics, font, sw / 2, sh / 2);
+                  if (AuroraConfig.customCrosshair) renderSmartCrosshair(graphics, mc, sw / 2, sh / 2);
+                  if (AuroraConfig.hitParticles && !SPARKS.isEmpty()) renderSparks(graphics);
+              }
+              private static void renderFireflies(GuiGraphicsExtractor g, int sw, int sh) {
+                  while (FIREFLIES.size() < 18) FIREFLIES.add(new Firefly(sw, sh));
+                  for (Firefly f : FIREFLIES) {
+                      f.x += f.vx; f.y += f.vy; f.phase += 0.05f;
+                      if (f.x < 0) f.x = sw; if (f.x > sw) f.x = 0;
+                      if (f.y < 0) f.y = sh; if (f.y > sh) f.y = 0;
+                      int pulse = (int) ((Math.sin(f.phase) + 1.0) * 65.0) + 25;
+                      int color = AuroraConfig.getAnimatedColor(f.colorOffset);
+                      int ix = (int) f.x, iy = (int) f.y;
+                      g.fill(ix - 2, iy - 2, ix + 2, iy + 2, AuroraConfig.withAlpha(color, pulse / 3));
+                      g.fill(ix - 1, iy - 1, ix + 1, iy + 1, AuroraConfig.withAlpha(color, pulse));
+                  }
+              }
+              private static void renderNeoVignette(GuiGraphicsExtractor g, Minecraft mc, int sw, int sh) {
+                  float hp = mc.player.getHealth();
+                  int borderColor = 0, alpha = 0;
+                  if (hp <= 7.0f) {
+                      double pulse = (Math.sin(System.currentTimeMillis() * 0.01) + 1.0) * 0.5;
+                      alpha = (int) (35 + pulse * 65); borderColor = 0xFFFF0A54;
+                  } else if (hitFlashAlpha > 0.01f) {
+                      alpha = (int) (hitFlashAlpha * 180); borderColor = AuroraConfig.getPrimaryColor(); hitFlashAlpha *= 0.88f;
+                  }
+                  if (alpha > 4) {
+                      int col = AuroraConfig.withAlpha(borderColor, alpha);
+                      g.fill(0, 0, sw, 3, col); g.fill(0, sh - 3, sw, sh, col);
+                      g.fill(0, 3, 3, sh - 3, col); g.fill(sw - 3, 3, sw, sh - 3, col);
+                  }
+              }
+              private static void renderWatermark(GuiGraphicsExtractor g, Font font) {
+                  Minecraft mc = Minecraft.getInstance();
+                  String text = "AURORA 26.1 ULTIMATE  |  " + mc.getFps() + " FPS  |  [0] MENU";
+                  int width = font.width(text) + 14;
+                  drawNeonPanel(g, 8, 8, width, 18);
+                  g.text(font, text, 15, 13, 0xFFFFFFFF, true);
+              }
+              private static void renderStatsPills(GuiGraphicsExtractor g, Font font, Minecraft mc, int sh) {
+                  double bps = Math.hypot(mc.player.getX() - mc.player.xo, mc.player.getZ() - mc.player.zo) * 20.0;
+                  int totems = countTotems(mc);
+                  String combatStr = "Тотемы: " + totems + "  |  Броня: " + mc.player.getArmorValue() + "  |  Комбо: x" + comboCount;
+                  String posStr = String.format(Locale.ROOT, "XYZ: %.0f, %.0f, %.0f  |  %.1f б/с", mc.player.getX(), mc.player.getY(), mc.player.getZ(), bps);
+                  drawNeonPanel(g, 8, sh - 44, font.width(combatStr) + 12, 16);
+                  g.text(font, combatStr, 14, sh - 40, totems > 0 ? 0xFFFFBE0B : 0xFFE0FBFC, true);
+                  drawNeonPanel(g, 8, sh - 24, font.width(posStr) + 12, 16);
+                  g.text(font, posStr, 14, sh - 20, AuroraConfig.getAnimatedColor(300), true);
+              }
+              private static int countTotems(Minecraft mc) {
+                  int count = 0;
+                  if (mc.player == null) return 0;
+                  if (mc.player.getOffhandItem().is(Items.TOTEM_OF_UNDYING)) count += mc.player.getOffhandItem().getCount();
+                  for (int i = 0; i < mc.player.getInventory().getContainerSize(); i++) {
+                      ItemStack stack = mc.player.getInventory().getItem(i);
+                      if (stack.is(Items.TOTEM_OF_UNDYING)) count += stack.getCount();
+                  }
+                  return count;
+              }
+              private static void renderKeystrokes(GuiGraphicsExtractor g, Font font, Minecraft mc) {
+                  int baseX = 8, baseY = 32;
+                  drawKeyBox(g, font, "W", baseX + 22, baseY, 20, 20, mc.options.keyUp.isDown());
+                  drawKeyBox(g, font, "A", baseX, baseY + 22, 20, 20, mc.options.keyLeft.isDown());
+                  drawKeyBox(g, font, "S", baseX + 22, baseY + 22, 20, 20, mc.options.keyDown.isDown());
+                  drawKeyBox(g, font, "D", baseX + 44, baseY + 22, 20, 20, mc.options.keyRight.isDown());
+                  drawKeyBox(g, font, "JUMP", baseX, baseY + 44, 64, 14, mc.options.keyJump.isDown());
+              }
+              private static void drawKeyBox(GuiGraphicsExtractor g, Font font, String label, int x, int y, int w, int h, boolean pressed) {
+                  int accent = AuroraConfig.getAnimatedColor(x * 15);
+                  g.fill(x, y, x + w, y + h, pressed ? AuroraConfig.withAlpha(accent, 165) : 0x8810121A);
+                  g.fill(x, y, x + w, y + 1, accent);
+                  g.text(font, label, x + (w - font.width(label)) / 2, y + (h - 8) / 2, pressed ? 0xFF10121A : 0xFFFFFFFF, !pressed);
+              }
+              private static void renderPotionHud(GuiGraphicsExtractor g, Font font, Minecraft mc, int sw) {
+                  Collection<MobEffectInstance> effects = mc.player.getActiveEffects();
+                  if (effects.isEmpty()) return;
+                  int y = 8;
+                  for (MobEffectInstance eff : effects) {
+                      String name = eff.getEffect().value().getDisplayName().getString();
+                      int amp = eff.getAmplifier() + 1;
+                      int sec = Math.max(0, eff.getDuration() / 20);
                       String label = name + (amp > 1 ? " " + amp : "") + String.format(Locale.ROOT, " (%d:%02d)", sec / 60, sec % 60);
                       int w = font.width(label) + 12;
                       int x = sw - w - 8;
